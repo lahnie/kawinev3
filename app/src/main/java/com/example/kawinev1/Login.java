@@ -7,6 +7,15 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.content.Intent;
 import android.widget.Toast;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -17,8 +26,8 @@ import Models.Administrator;
 
 public class Login extends AppCompatActivity {
 
-    private EditText editUser, editPassword;
-    private Button btnLogin, btnRegistrar;
+    public EditText CorreoTXT, ContrasenaTXT;
+    public Button IniciarSesionBTN, registroBTN, VolverBTN;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -26,38 +35,102 @@ public class Login extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_login);
 
-        editUser = findViewById(R.id.editUser);
-        editPassword = findViewById(R.id.editPassword);
-        btnLogin = findViewById(R.id.btnLogin);
-        btnRegistrar = findViewById(R.id.btnRegistrar);
+        CorreoTXT = findViewById(R.id.editEmail);
+        ContrasenaTXT = findViewById(R.id.inputPassword);
+        IniciarSesionBTN = findViewById(R.id.btnLogin);
+        registroBTN =  findViewById(R.id.btnRegistrar);
+        VolverBTN = findViewById(R.id.btnVolver);
 
-        btnRegistrar.setOnClickListener(new View.OnClickListener() {
+        VolverBTN.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View v) {
+            public void onClick(View view) {
+                Intent intent = new Intent(Login.this, MainActivity.class);
+                startActivity(intent);
+            }
+        });
+
+        registroBTN.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
                 Intent intent = new Intent(Login.this, Register.class);
                 startActivity(intent);
             }
         });
 
-        btnLogin.setOnClickListener(new View.OnClickListener() {
+        IniciarSesionBTN.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Administrator administrador = new Administrator();
-                String username = editUser.getText().toString();
-                String password = editPassword.getText().toString();
+                String email = CorreoTXT.getText().toString().trim();
+                String password = ContrasenaTXT.getText().toString().trim();
 
-                if (TextUtils.isEmpty(username) || TextUtils.isEmpty(password)) {
-                    Toast.makeText(Login.this, "Por favor ingrese usuario y contrasena", Toast.LENGTH_SHORT).show();
+                if (!email.isEmpty() && !password.isEmpty()) {
+                    iniciarSesion(email, password);
                 } else {
-                    if (username.equals(administrador.getUser()) && password.equals(administrador.getPassword())) {
-                        Intent intent = new Intent(Login.this, MainActivity.class);
-                        startActivity(intent);
-                        finish();
-                    } else {
-                        Toast.makeText(Login.this, "Usuario o contrasena incorrectos", Toast.LENGTH_SHORT).show();
-                    }
+                    Toast.makeText(Login.this, "Por favor, complete todos los campos", Toast.LENGTH_SHORT).show();
                 }
             }
         });
+    }
+
+    private void iniciarSesion(final String email, final String password) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    URL url = new URL("http://192.168.68.106/kawine/login.php");
+                    HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
+                    httpURLConnection.setRequestMethod("POST");
+                    httpURLConnection.setDoOutput(true);
+                    httpURLConnection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+
+                    OutputStream outputStream = httpURLConnection.getOutputStream();
+                    BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(outputStream, "UTF-8"));
+
+                    String post_data = URLEncoder.encode("email", "UTF-8") + "=" + URLEncoder.encode(email, "UTF-8") + "&"
+                            + URLEncoder.encode("password", "UTF-8") + "=" + URLEncoder.encode(password, "UTF-8");
+
+                    bufferedWriter.write(post_data);
+                    bufferedWriter.flush();
+                    bufferedWriter.close();
+                    outputStream.close();
+
+                    InputStream inputStream = httpURLConnection.getInputStream();
+                    BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, "iso-8859-1"));
+                    final StringBuilder result = new StringBuilder();
+                    String line;
+                    while ((line = bufferedReader.readLine()) != null) {
+                        result.append(line);
+                    }
+
+                    bufferedReader.close();
+                    inputStream.close();
+                    httpURLConnection.disconnect();
+
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            String respuesta = result.toString();
+                            if (respuesta.contains("Inicio de sesión exitoso")) {
+                                Toast.makeText(Login.this, "Bienvenido", Toast.LENGTH_LONG).show();
+                                 Intent intent = new Intent(Login.this, MainActivity.class);
+                                 startActivity(intent);
+                                // finish();
+                            } else {
+                                Toast.makeText(Login.this, respuesta, Toast.LENGTH_LONG).show();
+                            }
+                        }
+                    });
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(Login.this, "Error en la conexión: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
+            }
+        }).start();
     }
 }
